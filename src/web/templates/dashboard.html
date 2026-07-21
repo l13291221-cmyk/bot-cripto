@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bot Cripto — Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2330; --border:#2a3038;
+    --text:#e6edf3; --muted:#8b949e; --green:#2ea043; --green2:#3fb950;
+    --red:#f85149; --accent:#58a6ff; --gold:#e3b341;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:20px;max-width:1200px;margin:0 auto}
+  h1{font-size:22px;display:flex;align-items:center;gap:10px}
+  .badge{font-size:12px;padding:3px 10px;border-radius:20px;font-weight:600}
+  .badge.paper{background:#1f6feb33;color:var(--accent);border:1px solid #1f6feb66}
+  .badge.live{background:#f8514933;color:var(--red);border:1px solid #f8514966}
+  header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px}
+  .sub{color:var(--muted);font-size:13px}
+  .grid{display:grid;gap:16px}
+  .kpis{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px}
+  .card h3{font-size:13px;color:var(--muted);font-weight:500;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
+  .kpi-val{font-size:26px;font-weight:700}
+  .kpi-sub{font-size:13px;color:var(--muted);margin-top:4px}
+  .pos{color:var(--green2)} .neg{color:var(--red)}
+  /* Obiettivo mensile */
+  .goal{background:linear-gradient(135deg,#161b22,#1c2330);border:1px solid var(--border);border-radius:14px;padding:22px;margin-bottom:16px}
+  .goal-top{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px}
+  .goal-title{font-size:15px;color:var(--gold);font-weight:600}
+  .goal-big{font-size:32px;font-weight:800}
+  .bar{height:22px;background:#0d1117;border-radius:12px;overflow:hidden;margin:14px 0 8px;border:1px solid var(--border)}
+  .bar-fill{height:100%;background:linear-gradient(90deg,var(--green),var(--green2));border-radius:12px;transition:width .6s ease;min-width:2px}
+  .goal-legend{display:flex;justify-content:space-between;font-size:13px;color:var(--muted)}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--border)}
+  th{color:var(--muted);font-weight:500;font-size:12px;text-transform:uppercase}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  .pill{font-size:11px;padding:2px 8px;border-radius:6px;font-weight:600}
+  .pill.buy{background:#2ea04333;color:var(--green2)}
+  .pill.sell{background:#f8514933;color:var(--red)}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:800px){.row2{grid-template-columns:1fr}}
+  canvas{max-height:280px}
+  select{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:14px}
+  .empty{color:var(--muted);font-size:14px;padding:16px 0;text-align:center}
+  .warn{background:#e3b34122;border:1px solid #e3b34155;color:#e3b341;padding:10px 14px;border-radius:10px;font-size:13px;margin-bottom:16px}
+  .refresh{font-size:12px;color:var(--muted)}
+  section{margin-bottom:16px}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>🤖 Bot Cripto <span id="modeBadge" class="badge paper">PAPER</span></h1>
+    <div class="sub">Dashboard — investimenti, guadagni/perdite e obiettivo mensile</div>
+  </div>
+  <div class="refresh">Aggiornato: <span id="lastUpdate">—</span> · auto ogni 30s</div>
+</header>
+
+<div id="priceWarn" class="warn" style="display:none">
+  ⚠️ Dati di mercato non raggiungibili (Kraken non accessibile da questa rete): le
+  posizioni aperte sono valorizzate al prezzo medio di carico e alcuni grafici prezzi
+  potrebbero essere vuoti.
+</div>
+
+<!-- OBIETTIVO MENSILE -->
+<div class="goal">
+  <div class="goal-top">
+    <span class="goal-title">🎯 OBIETTIVO DEL MESE (<span id="month">—</span>)</span>
+    <span class="goal-big"><span id="realizedMonth">—</span> / <span id="targetMonth">—</span> €</span>
+  </div>
+  <div class="bar"><div id="goalBar" class="bar-fill" style="width:0%"></div></div>
+  <div class="goal-legend">
+    <span>Progresso: <b id="goalPct">0%</b></span>
+    <span>Manca: <b id="goalRemaining">—</b> € all'obiettivo</span>
+  </div>
+</div>
+
+<!-- KPI -->
+<section class="grid kpis">
+  <div class="card"><h3>Valore totale</h3><div id="equity" class="kpi-val">—</div><div class="kpi-sub">Capitale iniziale: <span id="initial">—</span> €</div></div>
+  <div class="card"><h3>Liquidità (EUR)</h3><div id="cash" class="kpi-val">—</div><div class="kpi-sub">In posizioni: <span id="holdings">—</span> €</div></div>
+  <div class="card"><h3>P&L totale</h3><div id="pnl" class="kpi-val">—</div><div id="pnlPct" class="kpi-sub">—</div></div>
+  <div class="card"><h3>P&L realizzato / latente</h3><div id="realized" class="kpi-val">—</div><div class="kpi-sub">Latente: <span id="unrealized">—</span> €</div></div>
+  <div class="card"><h3>Operazioni</h3><div id="trades" class="kpi-val">—</div><div class="kpi-sub">totali eseguite</div></div>
+</section>
+
+<!-- GRAFICI -->
+<section class="row2">
+  <div class="card"><h3>Andamento del portafoglio</h3><canvas id="equityChart"></canvas></div>
+  <div class="card"><h3>Profitto realizzato per mese</h3><canvas id="monthlyChart"></canvas></div>
+</section>
+
+<!-- POSIZIONI -->
+<section class="card">
+  <h3>Posizioni aperte</h3>
+  <table>
+    <thead><tr><th>Coppia</th><th class="num">Quantità</th><th class="num">Prezzo medio</th><th class="num">Prezzo attuale</th><th class="num">Valore</th><th class="num">P&L</th></tr></thead>
+    <tbody id="positionsBody"></tbody>
+  </table>
+  <div id="positionsEmpty" class="empty" style="display:none">Nessuna posizione aperta.</div>
+</section>
+
+<!-- PREZZI -->
+<section class="card">
+  <h3 style="display:flex;justify-content:space-between;align-items:center">
+    <span>Grafico prezzi</span>
+    <select id="pairSelect"></select>
+  </h3>
+  <canvas id="priceChart"></canvas>
+</section>
+
+<!-- STORICO -->
+<section class="card">
+  <h3>Storico operazioni</h3>
+  <table>
+    <thead><tr><th>Data</th><th>Tipo</th><th>Coppia</th><th class="num">Quantità</th><th class="num">Prezzo</th><th class="num">Importo €</th></tr></thead>
+    <tbody id="tradesBody"></tbody>
+  </table>
+  <div id="tradesEmpty" class="empty" style="display:none">Nessuna operazione registrata. Esegui qualche segnale dal bot Telegram per popolare la dashboard.</div>
+</section>
+
+<script>
+const eur = v => (v>=0?'':'-') + '€' + Math.abs(v).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2});
+const cls = v => v>=0 ? 'pos' : 'neg';
+let equityChart, monthlyChart, priceChart;
+
+async function j(url){ const r = await fetch(url); return r.json(); }
+
+function drawEquity(curve){
+  if(typeof Chart === 'undefined') return;   // Chart.js non caricato (offline): salta i grafici
+  const ctx = document.getElementById('equityChart');
+  const labels = curve.map(p => new Date(p.ts*1000).toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit'}));
+  const data = curve.map(p => p.equity);
+  if(equityChart) equityChart.destroy();
+  equityChart = new Chart(ctx,{type:'line',data:{labels,datasets:[{data,borderColor:'#58a6ff',backgroundColor:'#58a6ff22',fill:true,tension:.3,pointRadius:0,borderWidth:2}]},
+    options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8b949e',maxTicksLimit:8},grid:{display:false}},y:{ticks:{color:'#8b949e',callback:v=>'€'+v},grid:{color:'#2a3038'}}}}});
+}
+
+function drawMonthly(byMonth){
+  if(typeof Chart === 'undefined') return;
+  const ctx = document.getElementById('monthlyChart');
+  const keys = Object.keys(byMonth).sort();
+  const vals = keys.map(k=>byMonth[k]);
+  if(monthlyChart) monthlyChart.destroy();
+  monthlyChart = new Chart(ctx,{type:'bar',data:{labels:keys,datasets:[{data:vals,backgroundColor:vals.map(v=>v>=0?'#2ea043':'#f85149')}]},
+    options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8b949e'},grid:{display:false}},y:{ticks:{color:'#8b949e',callback:v=>'€'+v},grid:{color:'#2a3038'}}}}});
+}
+
+async function drawPrice(pair){
+  if(!pair || typeof Chart === 'undefined') return;
+  const d = await j('/api/prices/'+encodeURIComponent(pair));
+  const ctx = document.getElementById('priceChart');
+  const labels = d.series.map(p=>new Date(p.t).toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit'}));
+  const data = d.series.map(p=>p.close);
+  if(priceChart) priceChart.destroy();
+  priceChart = new Chart(ctx,{type:'line',data:{labels,datasets:[{data,borderColor:'#3fb950',backgroundColor:'#3fb95022',fill:true,tension:.2,pointRadius:0,borderWidth:2}]},
+    options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8b949e',maxTicksLimit:8},grid:{display:false}},y:{ticks:{color:'#8b949e',callback:v=>'€'+v},grid:{color:'#2a3038'}}}}});
+}
+
+function fillPositions(rows){
+  const body = document.getElementById('positionsBody');
+  const empty = document.getElementById('positionsEmpty');
+  body.innerHTML='';
+  if(!rows.length){ empty.style.display='block'; return; }
+  empty.style.display='none';
+  rows.forEach(p=>{
+    const priced = p.priced ? '' : ' *';
+    body.insertAdjacentHTML('beforeend',
+      `<tr><td><b>${p.pair}</b></td><td class="num">${p.volume}</td><td class="num">${eur(p.avg_cost)}</td>
+       <td class="num">${eur(p.current_price)}${priced}</td><td class="num">${eur(p.value_eur)}</td>
+       <td class="num ${cls(p.pnl_eur)}">${eur(p.pnl_eur)} (${p.pnl_pct>=0?'+':''}${p.pnl_pct}%)</td></tr>`);
+  });
+}
+
+function fillTrades(rows){
+  const body = document.getElementById('tradesBody');
+  const empty = document.getElementById('tradesEmpty');
+  body.innerHTML='';
+  if(!rows.length){ empty.style.display='block'; return; }
+  empty.style.display='none';
+  rows.forEach(t=>{
+    body.insertAdjacentHTML('beforeend',
+      `<tr><td>${t.datetime}</td><td><span class="pill ${t.side}">${t.side==='buy'?'ACQUISTO':'VENDITA'}</span></td>
+       <td>${t.pair}</td><td class="num">${t.volume}</td><td class="num">${eur(t.price)}</td><td class="num">${eur(t.amount_eur)}</td></tr>`);
+  });
+}
+
+async function refresh(){
+  const o = await j('/api/overview');
+
+  // Badge modalità
+  const badge = document.getElementById('modeBadge');
+  badge.textContent = o.mode;
+  badge.className = 'badge ' + (o.mode==='LIVE'?'live':'paper');
+
+  // Avviso prezzi
+  document.getElementById('priceWarn').style.display = o.prices_available ? 'none':'block';
+
+  // Obiettivo mensile
+  document.getElementById('month').textContent = o.month;
+  document.getElementById('realizedMonth').textContent = o.realized_this_month_eur.toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2});
+  document.getElementById('targetMonth').textContent = o.monthly_target_eur.toLocaleString('it-IT');
+  const pct = Math.max(0, Math.min(100, o.target_progress_pct));
+  document.getElementById('goalBar').style.width = pct + '%';
+  document.getElementById('goalPct').textContent = o.target_progress_pct + '%';
+  document.getElementById('goalRemaining').textContent = o.target_remaining_eur.toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+  // KPI
+  document.getElementById('equity').textContent = eur(o.equity_eur);
+  document.getElementById('initial').textContent = o.initial_eur;
+  document.getElementById('cash').textContent = eur(o.cash_eur);
+  document.getElementById('holdings').textContent = o.holdings_value_eur;
+  const pnlEl = document.getElementById('pnl');
+  pnlEl.textContent = eur(o.total_pnl_eur); pnlEl.className = 'kpi-val ' + cls(o.total_pnl_eur);
+  document.getElementById('pnlPct').textContent = (o.total_pnl_pct>=0?'+':'') + o.total_pnl_pct + '% sul capitale iniziale';
+  const rEl = document.getElementById('realized');
+  rEl.textContent = eur(o.realized_total_eur); rEl.className='kpi-val '+cls(o.realized_total_eur);
+  document.getElementById('unrealized').textContent = o.unrealized_eur;
+  document.getElementById('trades').textContent = o.trades_count;
+
+  drawEquity(o.equity_curve);
+  drawMonthly(o.realized_by_month);
+  fillPositions(o.positions);
+
+  document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('it-IT');
+
+  // Trades
+  const trades = await j('/api/trades');
+  fillTrades(trades);
+}
+
+async function initPairs(){
+  const cfg = await j('/api/config');
+  const sel = document.getElementById('pairSelect');
+  cfg.pairs.forEach(p=>{ const opt=document.createElement('option'); opt.value=p; opt.textContent=p; sel.appendChild(opt); });
+  sel.addEventListener('change', e=>drawPrice(e.target.value));
+  if(cfg.pairs.length) drawPrice(cfg.pairs[0]);
+}
+
+initPairs();
+refresh();
+setInterval(refresh, 30000);
+</script>
+</body>
+</html>

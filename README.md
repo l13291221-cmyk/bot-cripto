@@ -9,6 +9,8 @@ Sistema completo di trading automatico per criptovalute con:
 3. **Bot Telegram** che invia i segnali con **bottoni di conferma** (`Esegui` / `Ignora`).
 4. **Modalità Paper Trading** (simulazione con soldi finti) per testare la strategia
    prima di rischiare denaro reale.
+5. **Dashboard web** per vedere a colpo d'occhio investimenti, grafici,
+   guadagni/perdite e **quanto manca all'obiettivo del mese**.
 
 Quando ricevi un segnale su Telegram premi **Esegui** e il bot piazza l'ordine
 su Kraken via API (in LIVE) oppure lo simula (in PAPER); premi **Ignora** per scartarlo.
@@ -43,6 +45,7 @@ Usa solo denaro che puoi permetterti di perdere.
 ```
 bot-cripto/
 ├── main.py                  # entrypoint: bot Telegram / --once / --check
+├── dashboard.py             # entrypoint: dashboard web
 ├── backtest.py              # backtest indicativo su dati storici Kraken
 ├── config.py                # configurazione da .env
 ├── requirements.txt
@@ -64,8 +67,12 @@ bot-cripto/
     │   ├── portfolio.py       # portafoglio persistente (JSON) per il paper trading
     │   ├── paper_trader.py    # esecuzione simulata con fee realistiche
     │   └── live_trader.py     # esecuzione reale su Kraken
-    └── telegrambot/
-        └── bot.py             # bot con bottoni Esegui/Ignora + analisi periodica
+    ├── telegrambot/
+    │   └── bot.py             # bot con bottoni Esegui/Ignora + analisi periodica
+    └── web/
+        ├── app.py            # server Flask + API (overview, trades, prezzi)
+        ├── analytics.py      # equity curve, P&L realizzato, progresso obiettivo
+        └── templates/dashboard.html  # interfaccia (grafici Chart.js)
 ```
 
 ### Come nasce un segnale
@@ -154,6 +161,33 @@ python main.py
 Il bot esegue anche un'**analisi automatica** ogni `ANALYSIS_INTERVAL_MINUTES`
 e ti manda i segnali con i bottoni **✅ Esegui** / **❌ Ignora**.
 
+### 📊 Dashboard web
+
+```bash
+python dashboard.py                 # http://127.0.0.1:5000
+python dashboard.py --port 8080     # porta personalizzata
+python dashboard.py --host 0.0.0.0  # accessibile dagli altri dispositivi in rete locale
+```
+
+Apri il browser sull'indirizzo mostrato. La dashboard mostra:
+
+- 🎯 **Progresso verso l'obiettivo del mese**: barra con profitto realizzato nel
+  mese corrente vs target, e quanto manca.
+- **KPI**: valore totale del portafoglio, liquidità, P&L totale (€ e %),
+  P&L realizzato/latente, numero di operazioni.
+- **Grafici**: andamento del portafoglio nel tempo e profitto realizzato per mese.
+- **Posizioni aperte**: quantità, prezzo medio, prezzo attuale e P&L per coppia.
+- **Grafico prezzi** per ciascuna coppia (dati da Kraken).
+- **Storico operazioni**: tutte le compravendite eseguite.
+
+Si aggiorna da sola ogni 30 secondi. Legge i dati del Paper Trading
+(`data/paper_portfolio.json`); in modalità LIVE mostra la modalità e il saldo.
+Puoi tenere il bot Telegram e la dashboard in esecuzione contemporaneamente
+(sono due processi separati che leggono lo stesso portafoglio).
+
+> I grafici usano Chart.js caricato da CDN: serve connessione a Internet. Se il
+> CDN non è raggiungibile, KPI, obiettivo e tabelle restano comunque visibili.
+
 ### Backtest indicativo
 
 ```bash
@@ -182,8 +216,9 @@ farti un'idea della logica.
 python -m pytest tests/ -q
 ```
 
-Coprono indicatori, filtro sentiment/allerta rossa, generazione dei segnali e
-paper trading (buy/sell, persistenza, saldo insufficiente).
+Coprono indicatori, filtro sentiment/allerta rossa, generazione dei segnali,
+paper trading (buy/sell, persistenza, saldo insufficiente) e analytics della
+dashboard (equity curve, P&L realizzato, progresso verso l'obiettivo mensile).
 
 ---
 
