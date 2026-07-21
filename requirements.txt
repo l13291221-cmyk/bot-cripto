@@ -1,0 +1,12 @@
+# Core
+requests>=2.31.0
+python-dotenv>=1.0.0
+
+# Telegram bot (async) — l'extra [job-queue] abilita l'analisi periodica
+python-telegram-bot[job-queue]>=20.7
+
+# News / RSS sentiment (OPZIONALE).
+# Il modulo sentiment usa feedparser se presente, altrimenti ricade su un
+# parser RSS/Atom basato sulla stdlib (requests + xml.etree). Puoi quindi
+# ometterlo se l'installazione di feedparser dovesse dare problemi.
+feedparser>=6.0.10 ; python_version >= "3.0"
