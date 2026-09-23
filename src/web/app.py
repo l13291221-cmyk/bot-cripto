@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Dict, Optional
+from typing import Dict
 
 from flask import Flask, jsonify, render_template
 
